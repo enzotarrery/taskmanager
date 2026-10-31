@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: taskmanager
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/taskmanager}
+    username: ${SPRING_DATASOURCE_USERNAME:taskmanager}
+    password: ${SPRING_DATASOURCE_PASSWORD:local_dev_password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+server:
+  port: 8080

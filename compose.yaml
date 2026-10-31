@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?POSTGRES_PASSWORD must be set}
+
+    ports:
+      - "127.0.0.1:5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+
+    restart: unless-stopped
+
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DATABASE_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DATABASE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DATABASE_PASSWORD:?POSTGRES_PASSWORD must be set}
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    develop:
+      watch:
+        # Synchroniser les fichiers Java, puis recompiler
+        - action: sync+exec
+          path: ./src/main/java
+          target: /app/src/main/java
+          exec:
+            command: ./mvnw -q -DskipTests compile
+
+        # Synchroniser les ressources, puis recompiler
+        - action: sync+exec
+          path: ./src/main/resources
+          target: /app/src/main/resources
+          exec:
+            command: ./mvnw -q -DskipTests process-resources
+
+        # Reconstruire l'image si les dépendances changent
+        - action: rebuild
+          path: ./pom.xml
+
+        - action: rebuild
+          path: ./Dockerfile.dev
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+
+    profiles:
+      - test
+
+    working_dir: /app
+
+    volumes:
+      - .:/app
+      - maven_cache:/root/.m2
+
+    command: ["./mvnw", "-B", "test"]
+
+volumes:
+  postgres_data:
+  maven_cache:
